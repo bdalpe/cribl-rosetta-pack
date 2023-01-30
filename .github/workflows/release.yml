@@ -21,7 +21,7 @@ jobs:
       - name: Release
         if: ${{ success() }}
         id: release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v1
         with:
           prerelease: ${{ contains(github.ref, 'RC') || contains(github.ref, 'TC') }}
           files: /tmp/${{ github.event.repository.name }}-${{ env.GITHUB_SHA_SHORT }}-${{ env.GITHUB_REF_SLUG_CS }}.crbl
