@@ -1,0 +1,65 @@
+output: default
+streamtags: []
+groups: {}
+asyncFuncTimeout: 1000
+functions:
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: Converts XML formatted events received by Cribl WEF source into Snare
+        Syslog events.
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      add:
+        - name: _raw
+          value: C.Text.parseXml(_raw)
+        - name: host
+          value: sourceMachineID
+        - name: priority
+          value: "1"
+        - name: facility
+          value: "1"
+      remove:
+        - cribl_*
+        - source*
+  - id: mask
+    filter: "true"
+    disabled: null
+    conf:
+      rules:
+        - matchRegex: /[\r\n\t]/g
+          replaceExpr: '" "'
+      fields:
+        - _raw.Event.RenderingInfo.Message
+      depth: 5
+  - id: code
+    filter: "true"
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        const event = __e['_raw'].Event
+
+        const fields = [
+            event.System.Computer, // Don't overwrite with cribl host
+            "MSWinEventLog",
+            event.RenderingInfo.Level,
+            event.RenderingInfo.Channel,
+            event.System.EventRecordID,
+            C.Time.strftime(C.Time.strptime(event.System.TimeCreated.SystemTime, "%Y-%m-%dT%H:%M:%S.%fZ"), "%a %b %d %H:%M:%S %Y"),
+            event.System.EventID,
+            event.System.Provider.Name,
+            event.EventData.SubjectUserName || "-",
+            event.EventData.ClientProcessId || "-",
+            event.RenderingInfo.Keywords ? event.RenderingInfo.Keywords.Keyword : "-",
+            event.System.Computer,
+            event.System.Computer || "-",
+            event.RenderingInfo.Task || "-",
+            event.RenderingInfo.Message
+        ].join("\t")
+
+
+        __e["_raw"] = fields

@@ -1,0 +1,114 @@
+output: default
+streamtags: []
+groups: {}
+asyncFuncTimeout: 1000
+functions:
+  - id: serde
+    filter: "true"
+    disabled: null
+    conf:
+      mode: extract
+      type: json
+      srcField: _raw
+  - id: mask
+    filter: "true"
+    disabled: null
+    conf:
+      rules:
+        - matchRegex: /\/Date\((\d+)\)\//
+          replaceExpr: g1
+      fields:
+        - TimeCreated
+      depth: 5
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      add:
+        - name: TimeCreated
+          value: C.Time.strftime(TimeCreated / 1000, "%Y-%m-%dT%H:%M:%S.%f000Z")
+  - id: eval
+    filter: "true"
+    disabled: false
+    conf:
+      add:
+        - name: __event_code
+          value: String(Id)
+        - name: __version
+          value: String(Version)
+    description: Fields must be String type for multi-key lookup to work correctly
+  - id: lookup
+    filter: "true"
+    disabled: false
+    conf:
+      matchMode: exact
+      reloadPeriodSec: -1
+      addToEvent: false
+      inFields:
+        - eventField: __event_code
+          lookupField: event_code
+        - eventField: __version
+          lookupField: version
+      ignoreCase: false
+      file: win_template.csv
+      outFields:
+        - lookupField: fields
+          eventField: __fields
+    description: Obtain fields from the Windows Logging Template file
+  - id: code
+    filter: "true"
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        // Convert signed decimal to hex number
+
+        const decimalToHexString = (number) => {
+            number = number < 0 ? 0xFFFFFFFFFFFFFFFF + number + 1 : number;
+            return number.toString(16).toUpperCase();
+        }
+
+
+        // Converts two arrays into 
+
+        const kv_pairs = (keys, values) => {
+            const k = keys.split(',');
+            const v = values.map(entry => entry.Value);
+            return C.Misc.zip(k, v);
+        }
+
+
+        // Builds "XML" string from KV pairs
+
+        const xml_string = (kvs) => Object.entries(kvs).reduce((acc, curr) => `${acc}<Data Name='${curr[0]}'>${curr[1]}</Data>`, '');
+
+
+        // Make the XML event
+
+        __e['_raw'] = `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='${__e['ProviderName']}' Guid='{${__e['ProviderId']}}'/><EventID>${__e['Id']}</EventID><Version>${__e['Version']}</Version><Level>${__e['Level']}</Level><Task>${__e['Task']}</Task><Opcode>${__e['Opcode']}</Opcode><Keywords>0x${decimalToHexString(__e['Keywords'])}</Keywords><TimeCreated SystemTime='${__e['TimeCreated']}'/><EventRecordID>${__e['RecordId']}</EventRecordID><Correlation/><Execution ProcessID='${__e['ProcessId']}' ThreadID='${__e['ThreadId']}'/><Channel>${__e['LogName']}</Channel><Computer>${__e['MachineName']}</Computer><Security/></System><EventData>${xml_string(kv_pairs(__e['__fields'], __e['Properties']))}</EventData></Event>`
+    description: Build the XML event from the template
+  - id: mask
+    filter: "true"
+    disabled: null
+    conf:
+      rules:
+        - matchRegex: /\t/g
+          replaceExpr: '"\\t"'
+        - matchRegex: /\r/g
+          replaceExpr: '"\\r"'
+        - matchRegex: /\n/g
+          replaceExpr: '"\\n"'
+      fields:
+        - _raw
+      depth: 5
+  - id: eval
+    filter: "true"
+    disabled: false
+    conf:
+      keep:
+        - _raw
+        - _time
+        - host
+      remove:
+        - "*"
+    description: Remove everything except _raw and _time

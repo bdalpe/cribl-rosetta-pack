@@ -1,0 +1,8 @@
+{
+  "name": "windows-xml-xpath",
+  "main": "xml2csv.js",
+  "dependencies": {
+    "xmldom": "^0.6.0",
+    "xpath": "^0.0.32"
+  }
+}

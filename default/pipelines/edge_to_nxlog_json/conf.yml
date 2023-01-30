@@ -1,0 +1,98 @@
+output: default
+streamtags: []
+groups: {}
+asyncFuncTimeout: 1000
+functions:
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      add:
+        - value: Object.assign(__e, JSON.parse(_raw))
+          name: ""
+      remove:
+        - _raw
+        - Qualifiers
+        - RelatedActivityId
+        - Bookmark
+        - LogName
+        - host
+        - UserId
+        - MatchedQueryIds
+    description: Parse JSON and move to top level
+  - id: rename
+    filter: "true"
+    disabled: null
+    conf:
+      wildcardDepth: 5
+      rename:
+        - currentName: ActivityId
+          newName: ActivityID
+        - currentName: TaskDisplayName
+          newName: Category
+        - currentName: ContainerLog
+          newName: Channel
+        - currentName: MachineName
+          newName: Hostname
+        - currentName: Id
+          newName: EventID
+        - currentName: Level
+          newName: SeverityValue
+        - currentName: LevelDisplayName
+          newName: Severity
+        - currentName: Opcode
+          newName: OpcodeValue
+        - currentName: OpcodeDisplayName
+          newName: Opcode
+        - currentName: ProcessId
+          newName: ProcessID
+        - currentName: ProviderName
+          newName: SourceName
+        - currentName: RecordId
+          newName: RecordNumber
+        - currentName: TimeCreated
+          newName: EventTime
+        - currentName: KeywordsDisplayNames
+          newName: EventType
+  - id: lookup
+    filter: "true"
+    disabled: null
+    conf:
+      matchMode: exact
+      reloadPeriodSec: -1
+      addToEvent: false
+      inFields:
+        - eventField: EventID
+          lookupField: event_code
+      ignoreCase: false
+      outFields:
+        - lookupField: fields
+          eventField: __fields
+      file: win_template.csv
+  - id: code
+    filter: "true"
+    disabled: null
+    conf:
+      maxNumOfIterations: 5000
+      code: |-
+        // Converts two arrays into 
+        const kv_pairs = (keys, values) => {
+            const k = keys.split(',');
+            const v = values.map(entry => entry.Value);
+            return C.Misc.zip(k, v);
+        }
+
+        Object.assign(__e, kv_pairs(__e['__fields'], __e['Properties']))
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      remove:
+        - Properties
+      add:
+        - name: EventTime
+          value: EventTime.substr(6, 13)
+        - name: EventType
+          value: EventType[0].toUpperCase().replace(/ /g, '_')
+    description: Final Cleanup
+description: Google Chronicle
