@@ -2,6 +2,7 @@
   "name": "windows-xml-xpath",
   "main": "xml2csv.js",
   "dependencies": {
+    "csv-writer": "^1.6.0",
     "xmldom": "^0.6.0",
     "xpath": "^0.0.32"
   }

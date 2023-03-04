@@ -2,42 +2,46 @@ const fs = require('fs');
 const path = require('path');
 const xpath = require('xpath');
 const Dom = require('xmldom').DOMParser;
+const createCsvWriter = require('csv-writer').createArrayCsvWriter;
 
-let events = []
+let pathToManifests = path.join(__dirname, "source");
 
-const getAttributeValue = (element, attribute) => element.attributes.getNamedItem(attribute)?.value;
+const getNodeValue = (node, element) => xpath.select(`${node}/text()`, element)[0]?.nodeValue.trimStart();
 
-const contents = fs.readFileSync(path.join(__dirname, "security.xml"), 'utf16le')
-var doc = new Dom().parseFromString(contents);
-var select = xpath.useNamespaces({'events': 'http://schemas.microsoft.com/win/2004/08/events'})
-var templates = select('//events:event', doc);
-events = templates.map((e) => ({
-    event_code: getAttributeValue(e, "value"),
-    version: getAttributeValue(e, "version"),
-    template: getAttributeValue(e, "message").value.replace(/\t/g, "\\t").replace(/\r\n/g, "\\n")
-}));
-
-const getTemplateDataFields = (tid, xpath, doc) => {
-    let fields = xpath(`//events:template[@tid="${tid}"]/events:data/@name`, doc);
-    return fields.map(e => e.nodeValue).join(',')
+const processTemplate = (xmlString) => {
+    if (!xmlString) return "";
+    const select = xpath.useNamespaces({'events': 'http://schemas.microsoft.com/win/2004/08/events'});
+    let template = new Dom().parseFromString(xmlString);
+    let names = select("/events:template/events:data/@name", template);
+    return names.map(e => e.nodeValue).join(',');
+}
+const processEvent = (event) => {
+    let eventCode = getNodeValue("Id", event);
+    let version = getNodeValue("Version", event);
+    let message = getNodeValue("Message", event)?.replace(/\t/g, "\\t").replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+    let template = getNodeValue("Template", event);
+    return [eventCode, version, message, processTemplate(template)];
 }
 
-const contents2 = fs.readFileSync(path.join(__dirname, "Microsoft-Windows-Security-Auditing.manifest.xml"), 'utf8')
-let doc2 = new Dom().parseFromString(contents2)
-let e = select('//events:event', doc2)
-e.forEach(elem => {
-    let value = getAttributeValue(elem, "value");
-    let version = getAttributeValue(elem, "version");
-    let template = getAttributeValue(elem,"template");
-
-    if (template) {
-        let idx = events.findIndex(elem => elem.event_code === value && elem.version === version)
-        Object.assign(events[idx], {fields: getTemplateDataFields(template, select, doc2)}, events[idx]);
-    }
+const csv = createCsvWriter({
+    header: ['provider', 'event_code', 'version', 'template', 'fields'],
+    path: './templates.csv'
 })
+const processManifestContents = (contents) => {
+    let doc = new Dom().parseFromString(contents);
+    let templates = xpath.select('/Providers/Provider/EventMetadata/Event', doc);
+    let provider = getNodeValue('/Providers/Provider/Name', doc);
+    return {provider, templates: templates.map(template => processEvent(template))};
+}
 
+let out = [];
+const exclude = ['.gitkeep', 'All.xml'];
+fs.readdirSync(pathToManifests).filter(file => !exclude.includes(file)).forEach(file => {
+    console.log(`Processing ${file}`);
+    let f = fs.readFileSync(path.join(pathToManifests, file), 'utf8');
+    let records = processManifestContents(f);
+    let output = records.templates.map(entry => [records.provider, ...entry]);
+    out.push(...output);
+});
 
-console.log("event_code,version,template,fields");
-events.forEach(e => {
-    console.log(`${e.event_code},${e.version},"${e.template}","${e.fields || ""}"`);
-})
+csv.writeRecords(out).then(() => console.log("done"));
