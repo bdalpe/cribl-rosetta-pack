@@ -54,6 +54,16 @@ functions:
           newName: EventTime
         - currentName: KeywordsDisplayNames
           newName: EventType
+  - id: eval
+    filter: "true"
+    disabled: null
+    conf:
+      add:
+        - name: Version
+          value: "`${Version}`"
+        - name: EventID
+          value: "`${EventID}`"
+    description: Convert fields to strings for Lookup
   - id: lookup
     filter: "true"
     disabled: null
@@ -62,8 +72,12 @@ functions:
       reloadPeriodSec: -1
       addToEvent: false
       inFields:
+        - eventField: SourceName
+          lookupField: provider
         - eventField: EventID
           lookupField: event_code
+        - eventField: Version
+          lookupField: version
       ignoreCase: false
       outFields:
         - lookupField: fields
@@ -71,7 +85,7 @@ functions:
       file: win_template.csv
   - id: code
     filter: "true"
-    disabled: null
+    disabled: false
     conf:
       maxNumOfIterations: 5000
       code: |-
@@ -85,7 +99,7 @@ functions:
         Object.assign(__e, kv_pairs(__e['__fields'], __e['Properties']))
   - id: eval
     filter: "true"
-    disabled: null
+    disabled: false
     conf:
       remove:
         - Properties

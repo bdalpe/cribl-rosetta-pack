@@ -38,6 +38,8 @@ functions:
       reloadPeriodSec: 60
       addToEvent: false
       inFields:
+        - eventField: SourceName
+          lookupField: provider
         - eventField: EventID
           lookupField: event_code
       ignoreCase: false
@@ -70,6 +72,8 @@ functions:
           replaceExpr: '"	"'
         - matchRegex: /\\n/g
           replaceExpr: '"\n"'
+        - matchRegex: /\\r/g
+          replaceExpr: '""'
       fields:
         - __template
         - __template_orig
@@ -108,7 +112,7 @@ functions:
         __e['_raw'] = __e['__template_orig']
   - id: code
     filter: "true"
-    disabled: false
+    disabled: true
     conf:
       maxNumOfIterations: 5000
       code: "__e['__fields2'] =
