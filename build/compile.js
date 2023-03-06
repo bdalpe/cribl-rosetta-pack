@@ -5,6 +5,7 @@ const Dom = require('xmldom').DOMParser;
 const createCsvWriter = require('csv-writer').createArrayCsvWriter;
 
 let pathToManifests = path.join(__dirname, "source");
+let pathToCustomManifests = path.join(__dirname, "custom_manifests");
 
 const getNodeValue = (node, element) => xpath.select(`${node}/text()`, element)[0]?.nodeValue.trimStart();
 
@@ -36,7 +37,7 @@ const processManifestContents = (contents) => {
 
 let out = [];
 const exclude = ['.gitkeep', 'All.xml'];
-fs.readdirSync(pathToManifests).filter(file => !exclude.includes(file)).forEach(file => {
+[pathToManifests, pathToCustomManifests].map(path => fs.readdirSync(path)).flat().filter(file => !exclude.includes(file)).forEach(file => {
     console.log(`Processing ${file}`);
     let f = fs.readFileSync(path.join(pathToManifests, file), 'utf8');
     let records = processManifestContents(f);
