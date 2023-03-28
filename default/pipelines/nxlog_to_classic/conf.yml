@@ -34,12 +34,11 @@ functions:
     filter: "true"
     disabled: null
     conf:
-      matchMode: exact
+      matchMode: regex
+      matchType: all
       reloadPeriodSec: 60
       addToEvent: false
       inFields:
-        - eventField: SourceName
-          lookupField: provider
         - eventField: EventID
           lookupField: event_code
       ignoreCase: false
@@ -56,6 +55,40 @@ functions:
     disabled: null
     conf:
       comment: https://gitlab.com/nxlog-public/nxlog-ce/-/blob/master/src/modules/extension/syslog/syslog.c#L1343
+  - id: code
+    filter: Array.isArray(__template)
+    disabled: null
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        const replacements = [
+            [RegExp(/\\r/g), ""],
+            [RegExp(/\\n/g), "  "],
+            [RegExp(/\\t/g), " "],
+            [RegExp(/([\(\)])/g), `\\$1`],
+            [RegExp(/%(\d+)/g), `(?<g$1>.*)`],
+            [RegExp(/!S!/g), ""]
+        ]
+
+
+        let templates = __e['__template']
+
+
+        replacements.forEach(([search, replace]) => {
+            templates = templates.map(entry => entry.replace(search, replace))
+        })
+
+
+        const index = templates.findIndex(template => new RegExp(template, "gm").test(__e['Message']))
+
+
+        __e['__template'] = __e['__template'][index]
+
+        __e['__template_orig'] = __e['__template_orig'][index]
+
+        __e['__fields'] = __e['__fields'][index]
+    description: If there are multiple templates, try to figure out which one
+      matches. First true wins.
   - id: eval
     filter: __fields
     disabled: false
@@ -72,8 +105,6 @@ functions:
           replaceExpr: '"	"'
         - matchRegex: /\\n/g
           replaceExpr: '"\n"'
-        - matchRegex: /\\r/g
-          replaceExpr: '""'
       fields:
         - __template
         - __template_orig
@@ -112,7 +143,7 @@ functions:
         __e['_raw'] = __e['__template_orig']
   - id: code
     filter: "true"
-    disabled: true
+    disabled: false
     conf:
       maxNumOfIterations: 5000
       code: "__e['__fields2'] =
