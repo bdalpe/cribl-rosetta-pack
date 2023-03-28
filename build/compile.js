@@ -37,12 +37,14 @@ const processManifestContents = (contents) => {
 
 let out = [];
 const exclude = ['.gitkeep', 'All.xml'];
-[pathToManifests, pathToCustomManifests].map(path => fs.readdirSync(path)).flat().filter(file => !exclude.includes(file)).forEach(file => {
+const handleDir = (p) => fs.readdirSync(p).flat().filter(file => !exclude.includes(file)).forEach(file => {
     console.log(`Processing ${file}`);
-    let f = fs.readFileSync(path.join(pathToManifests, file), 'utf8');
+    let f = fs.readFileSync(path.join(p, file), 'utf8');
     let records = processManifestContents(f);
     let output = records.templates.map(entry => [records.provider, ...entry]);
     out.push(...output);
 });
+
+[pathToManifests, pathToCustomManifests].forEach(entry => handleDir(entry));
 
 csv.writeRecords(out).then(() => console.log("done"));
