@@ -1,0 +1,159 @@
+output: default
+streamtags: []
+groups: {}
+asyncFuncTimeout: 1000
+functions:
+  - id: regex_extract
+    filter: "true"
+    disabled: null
+    conf:
+      source: _raw
+      iterations: 100
+      overwrite: false
+      regex: /(?<_NAME_0>[^=\s]+)=(?<_VALUE_0>[^\t]+)/g
+  - id: lookup
+    filter: "true"
+    disabled: false
+    conf:
+      matchMode: regex
+      matchType: all
+      reloadPeriodSec: 60
+      addToEvent: false
+      inFields:
+        - eventField: Source
+          lookupField: provider
+        - eventField: EventID
+          lookupField: event_code
+      ignoreCase: false
+      outFields:
+        - lookupField: template
+          eventField: __template
+        - lookupField: template
+          eventField: __template_orig
+        - lookupField: fields
+          eventField: __fields
+      file: win_template.csv
+  - id: comment
+    filter: "true"
+    disabled: null
+    conf:
+      comment: https://gitlab.com/nxlog-public/nxlog-ce/-/blob/master/src/modules/extension/syslog/syslog.c#L1343
+  - id: code
+    filter: Array.isArray(__template)
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        const replacements = [
+            [RegExp(/\\r/g), ""],
+            [RegExp(/\\n/g), " "],
+            [RegExp(/\\t/g), " "],
+            [RegExp(/([\(\)])/g), `\\$1`],
+            [RegExp(/%(\d+)/g), `(?<g$1>.*)`],
+            [RegExp(/!S!/g), ""]
+        ]
+
+
+        let templates = __e['__template']
+
+
+        replacements.forEach(([search, replace]) => {
+            templates = templates.map(entry => entry.replace(search, replace))
+        })
+
+
+        const index = templates.findIndex(template => new RegExp(template, "gm").test(__e['Message']))
+
+
+        __e['__template'] = __e['__template'][index]
+
+        __e['__template_orig'] = __e['__template_orig'][index]
+
+        __e['__fields'] = __e['__fields'][index]
+    description: If there are multiple templates, try to figure out which one
+      matches. First true wins.
+  - id: eval
+    filter: __fields
+    disabled: false
+    conf:
+      add:
+        - name: __fields
+          value: __fields.split(',')
+  - id: mask
+    filter: "true"
+    disabled: false
+    conf:
+      rules:
+        - matchRegex: /\\t/g
+          replaceExpr: '"	"'
+        - matchRegex: /\\n/g
+          replaceExpr: '"\n"'
+        - matchRegex: /\\r/g
+          replaceExpr: '""'
+      fields:
+        - __template
+        - __template_orig
+      depth: 5
+  - id: mask
+    filter: "true"
+    disabled: false
+    conf:
+      rules:
+        - matchRegex: /\t/g
+          replaceExpr: '" "'
+        - matchRegex: /\n/g
+          replaceExpr: '" "'
+        - matchRegex: /([\(\)])/g
+          replaceExpr: "`\\\\${g1}`"
+        - matchRegex: /%(\d+)/g
+          replaceExpr: "`(?<g${g1}>.*)`"
+        - matchRegex: /!S!/g
+          replaceExpr: '""'
+      fields:
+        - __template
+      depth: 5
+    description: Convert Classic Message to NXLog Snare Format
+  - id: code
+    filter: "true"
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: >-
+        Object.entries(RegExp(__e['__template']).exec(__e['Message']).groups).forEach(([k,
+        v]) => {
+            __e['__template_orig'] = __e['__template_orig'].replace(new RegExp(`%${k.substr(1)}`), v)
+        })
+
+
+        __e['_raw'] = __e['__template_orig']
+  - id: code
+    filter: "true"
+    disabled: false
+    conf:
+      maxNumOfIterations: 5000
+      code: "Object.assign(__e, __e,
+        Object.entries(RegExp(__e['__template']).exec(__e['Message']).groups).r\
+        educe((prev, curr, index) => Object.assign({},
+        ({[__e['__fields'][curr[0].substr(1)-1]]: curr[1]}), prev), {}));"
+  - id: serialize
+    filter: "true"
+    disabled: true
+    conf:
+      type: kvp
+      fields:
+        - "*"
+      dstField: _raw
+      cleanFields: false
+      srcField: __fields2
+  - id: serde
+    filter: "true"
+    disabled: true
+    conf:
+      mode: reserialize
+      type: kvp
+      srcField: _raw
+      cleanFields: false
+      allowedKeyChars: []
+      allowedValueChars: []
+      dstField: _raw
+      fieldFilterExpr: value !== '-'
