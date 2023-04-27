@@ -45,12 +45,11 @@ functions:
       maxNumOfIterations: 5000
       code: >-
         const replacements = [
-            [RegExp(/\\r/g), ""],
-            [RegExp(/\\n/g), " "],
-            [RegExp(/\\t/g), " "],
+            [RegExp(/!S!(?:\\r|\\n|\\t)+/g), " ?"],
+            [RegExp(/!S!/g), ""],
+            [RegExp(/(?:\\r|\\n|\\t| )+/g), " "],
             [RegExp(/([\(\)])/g), `\\$1`],
-            [RegExp(/%(\d+)/g), `(?<g$1>.*)`],
-            [RegExp(/!S!/g), ""]
+            [RegExp(/%(\d+)/g), `(?<g$1>.*?)`],
         ]
 
 
@@ -99,16 +98,26 @@ functions:
     disabled: false
     conf:
       rules:
-        - matchRegex: /\t/g
-          replaceExpr: '" "'
-        - matchRegex: /\n/g
+        - matchRegex: /!S!/g
+          replaceExpr: '""'
+      fields:
+        - __template_orig
+      depth: 5
+  - id: mask
+    filter: "true"
+    disabled: false
+    conf:
+      rules:
+        - matchRegex: /!S![\r\n\t ]+/g
+          replaceExpr: '" ?"'
+        - matchRegex: /!S!/g
+          replaceExpr: '""'
+        - matchRegex: /[\n\r\t ]+/g
           replaceExpr: '" "'
         - matchRegex: /([\(\)])/g
           replaceExpr: "`\\\\${g1}`"
         - matchRegex: /%(\d+)/g
-          replaceExpr: "`(?<g${g1}>.*)`"
-        - matchRegex: /!S!/g
-          replaceExpr: '""'
+          replaceExpr: "`(?<g${g1}>.*?)`"
       fields:
         - __template
       depth: 5
